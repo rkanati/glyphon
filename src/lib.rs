@@ -11,15 +11,6 @@ mod text_atlas;
 mod text_render;
 mod viewport;
 
-pub use cache::Cache;
-pub use custom_glyph::{
-    ContentType, CustomGlyph, CustomGlyphId, RasterizeCustomGlyphRequest, RasterizedCustomGlyph,
-};
-pub use error::{PrepareError, RenderError};
-pub use text_atlas::{ColorMode, TextAtlas};
-pub use text_render::TextRenderer;
-pub use viewport::Viewport;
-
 // Re-export all top-level types from `cosmic-text` for convenience.
 #[doc(no_inline)]
 pub use cosmic_text::{
@@ -29,15 +20,20 @@ pub use cosmic_text::{
     ShapeWord, Shaping, Stretch, Style, SubpixelBin, SwashCache, SwashContent, SwashImage, Weight,
     Wrap,
 };
-
 use etagere::AllocId;
+pub use {
+    cache::Cache,
+    custom_glyph::{
+        ContentType, CustomGlyph, CustomGlyphId, RasterizeCustomGlyphRequest, RasterizedCustomGlyph,
+    },
+    error::{PrepareError, RenderError},
+    text_atlas::{ColorMode, TextAtlas},
+    text_render::TextRenderer,
+    viewport::Viewport,
+};
 
 pub(crate) enum GpuCacheStatus {
-    InAtlas {
-        x: u16,
-        y: u16,
-        content_type: ContentType,
-    },
+    InAtlas { x: u16, y: u16, content_type: ContentType },
     SkipRasterization,
 }
 
@@ -94,12 +90,7 @@ pub struct TextBounds {
 /// The default visible area doesn't clip any text.
 impl Default for TextBounds {
     fn default() -> Self {
-        Self {
-            left: i32::MIN,
-            top: i32::MIN,
-            right: i32::MAX,
-            bottom: i32::MAX,
-        }
+        Self { left: i32::MIN, top: i32::MIN, right: i32::MAX, bottom: i32::MAX }
     }
 }
 
@@ -108,6 +99,8 @@ impl Default for TextBounds {
 pub struct TextArea<'a> {
     /// The buffer containing the text to be rendered.
     pub buffer: &'a Buffer,
+    /// NOTE(rk): The maximum number of glyphs to render.
+    pub max_glyphs: u32,
     /// The left edge of the buffer.
     pub left: f32,
     /// The top edge of the buffer.

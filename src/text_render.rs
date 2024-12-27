@@ -1,14 +1,17 @@
-use crate::{
-    custom_glyph::CustomGlyphCacheKey, ColorMode, ContentType, FontSystem, GlyphDetails,
-    GlyphToRender, GpuCacheStatus, PrepareError, RasterizeCustomGlyphRequest,
-    RasterizedCustomGlyph, RenderError, SwashCache, SwashContent, TextArea, TextAtlas, Viewport,
-};
-use cosmic_text::{Color, SubpixelBin};
-use std::{slice, sync::Arc};
-use wgpu::{
-    Buffer, BufferDescriptor, BufferUsages, DepthStencilState, Device, Extent3d, ImageCopyTexture,
-    ImageDataLayout, MultisampleState, Origin3d, Queue, RenderPass, RenderPipeline, TextureAspect,
-    COPY_BUFFER_ALIGNMENT,
+use {
+    crate::{
+        custom_glyph::CustomGlyphCacheKey, ColorMode, ContentType, FontSystem, GlyphDetails,
+        GlyphToRender, GpuCacheStatus, PrepareError, RasterizeCustomGlyphRequest,
+        RasterizedCustomGlyph, RenderError, SwashCache, SwashContent, TextArea, TextAtlas,
+        Viewport,
+    },
+    cosmic_text::{Color, SubpixelBin},
+    std::{slice, sync::Arc},
+    wgpu::{
+        Buffer, BufferDescriptor, BufferUsages, DepthStencilState, Device, Extent3d,
+        ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, Queue, RenderPass,
+        RenderPipeline, TextureAspect, COPY_BUFFER_ALIGNMENT,
+    },
 };
 
 /// A text renderer that uses cached glyphs to render text into an existing render pass.
@@ -37,12 +40,7 @@ impl TextRenderer {
 
         let pipeline = atlas.get_or_create_pipeline(device, multisample, depth_stencil);
 
-        Self {
-            vertex_buffer,
-            vertex_buffer_size,
-            pipeline,
-            glyph_vertices: Vec::new(),
-        }
+        Self { vertex_buffer, vertex_buffer_size, pipeline, glyph_vertices: Vec::new() }
     }
 
     /// Prepares all of the provided text areas for rendering.
@@ -151,12 +149,7 @@ impl TextRenderer {
                 let height = (glyph.height * text_area.scale).round() as u16;
 
                 let (x, y, x_bin, y_bin) = if glyph.snap_to_physical_pixel {
-                    (
-                        x.round() as i32,
-                        y.round() as i32,
-                        SubpixelBin::Zero,
-                        SubpixelBin::Zero,
-                    )
+                    (x.round() as i32, y.round() as i32, SubpixelBin::Zero, SubpixelBin::Zero)
                 } else {
                     let (x, x_bin) = SubpixelBin::new(x);
                     let (y, y_bin) = SubpixelBin::new(y);
@@ -237,8 +230,14 @@ impl TextRenderer {
                 .skip_while(|run| !is_run_visible(run))
                 .take_while(is_run_visible);
 
-            for run in layout_runs {
+            let mut remaining_glyphs = text_area.max_glyphs;
+
+            'runs_loop: for run in layout_runs {
                 for glyph in run.glyphs.iter() {
+                    if remaining_glyphs == 0 {
+                        break 'runs_loop;
+                    }
+
                     let physical_glyph =
                         glyph.physical((text_area.left, text_area.top), text_area.scale);
 
@@ -293,6 +292,7 @@ impl TextRenderer {
                         &mut rasterize_custom_glyph,
                     )? {
                         self.glyph_vertices.push(glyph_to_render);
+                        remaining_glyphs -= 1;
                     }
                 }
             }
@@ -376,20 +376,14 @@ fn create_oversized_buffer(
     usage: BufferUsages,
 ) -> (Buffer, u64) {
     let size = next_copy_buffer_size(contents.len() as u64);
-    let buffer = device.create_buffer(&BufferDescriptor {
-        label,
-        size,
-        usage,
-        mapped_at_creation: true,
-    });
+    let buffer =
+        device.create_buffer(&BufferDescriptor { label, size, usage, mapped_at_creation: true });
     buffer.slice(..).get_mapped_range_mut()[..contents.len()].copy_from_slice(contents);
     buffer.unmap();
     (buffer, size)
 }
 
-fn zero_depth(_: usize) -> f32 {
-    0f32
-}
+fn zero_depth(_: usize) -> f32 { 0f32 }
 
 struct GetGlyphImageResult {
     content_type: ContentType,
@@ -471,11 +465,7 @@ where
                 ImageCopyTexture {
                     texture: &inner.texture,
                     mip_level: 0,
-                    origin: Origin3d {
-                        x: atlas_min.x as u32,
-                        y: atlas_min.y as u32,
-                        z: 0,
-                    },
+                    origin: Origin3d { x: atlas_min.x as u32, y: atlas_min.y as u32, z: 0 },
                     aspect: TextureAspect::All,
                 },
                 &image.data,
