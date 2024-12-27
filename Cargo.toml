@@ -10,9 +10,13 @@ license = "MIT OR Apache-2.0 OR Zlib"
 [dependencies]
 wgpu = { version = "23", default-features = false, features = ["wgsl"] }
 etagere = "0.2.10"
-cosmic-text = { version = "0.12", default-features = false, features = ["std", "swash"] }
 lru = { version = "0.12.1", default-features = false }
 rustc-hash = "2.0"
+
+[dependencies.cosmic-text]
+git = "https://github.com/rkanati/cosmic-text"
+default-features = false
+features = ["std", "swash"]
 
 [features]
 default = ["fontconfig"]
