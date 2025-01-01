@@ -99,8 +99,10 @@ impl Default for TextBounds {
 pub struct TextArea<'a> {
     /// The buffer containing the text to be rendered.
     pub buffer: &'a Buffer,
-    /// NOTE(rk): The maximum number of glyphs to render.
-    pub max_glyphs: u32,
+    /// NOTE(rk): The start of the range of glyphs to render, or `None` to render from the start of the buffer.
+    pub start: Option<LayoutCursor>,
+    /// NOTE(rk): The end of the range of glyphs to render, or `None` to render to the end of the buffer.
+    pub end: Option<LayoutCursor>,
     /// The left edge of the buffer.
     pub left: f32,
     /// The top edge of the buffer.

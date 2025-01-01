@@ -5,7 +5,7 @@ use {
         RasterizedCustomGlyph, RenderError, SwashCache, SwashContent, TextArea, TextAtlas,
         Viewport,
     },
-    cosmic_text::{Color, SubpixelBin},
+    cosmic_text::{Color, LayoutCursor, SubpixelBin},
     std::{slice, sync::Arc},
     wgpu::{
         Buffer, BufferDescriptor, BufferUsages, DepthStencilState, Device, Extent3d,
@@ -217,27 +217,59 @@ impl TextRenderer {
                 }
             }
 
-            let is_run_visible = |run: &cosmic_text::LayoutRun| {
-                let start_y = (text_area.top + run.line_top) as i32;
-                let end_y = (text_area.top + run.line_top + run.line_height) as i32;
-
-                start_y <= bounds_max_y && bounds_min_y <= end_y
-            };
-
-            let layout_runs = text_area
-                .buffer
-                .layout_runs()
-                .skip_while(|run| !is_run_visible(run))
-                .take_while(is_run_visible);
-
-            let mut remaining_glyphs = text_area.max_glyphs;
-
-            'runs_loop: for run in layout_runs {
-                for glyph in run.glyphs.iter() {
-                    if remaining_glyphs == 0 {
-                        break 'runs_loop;
+            let run_visible_glyph_range =
+                |run: &cosmic_text::LayoutRun| -> Option<std::ops::Range<usize>> {
+                    let start_y = (text_area.top + run.line_top) as i32;
+                    let end_y = (text_area.top + run.line_top + run.line_height) as i32;
+                    let in_bounds = start_y <= bounds_max_y && bounds_min_y <= end_y;
+                    if !in_bounds {
+                        return None;
                     }
 
+                    let start = match text_area.start {
+                        Some(LayoutCursor { line, layout, glyph })
+                            if line == run.line_i && layout == run.layout_i =>
+                        {
+                            glyph
+                        }
+                        Some(LayoutCursor { line, layout, .. })
+                            if line > run.line_i || line == run.line_i && layout > run.layout_i =>
+                        {
+                            run.glyphs.len()
+                        }
+                        _ => 0,
+                    };
+
+                    let end = match text_area.end {
+                        Some(LayoutCursor { line, layout, glyph })
+                            if line == run.line_i && layout == run.layout_i =>
+                        {
+                            glyph
+                        }
+                        Some(LayoutCursor { line, layout, .. })
+                            if line < run.line_i || line == run.line_i && layout < run.layout_i =>
+                        {
+                            0
+                        }
+                        _ => run.glyphs.len(),
+                    };
+
+                    if (start..end).is_empty() {
+                        None
+                    } else {
+                        Some(start..end)
+                    }
+                };
+
+            let layout_runs = text_area.buffer.layout_runs().filter_map(|run| {
+                let range = run_visible_glyph_range(&run)?;
+                Some((run, range))
+            });
+            // .skip_while(|run| !is_run_visible(run))
+            // .take_while(is_run_visible);
+
+            for (run, glyph_range) in layout_runs {
+                for glyph in &run.glyphs[glyph_range] {
                     let physical_glyph =
                         glyph.physical((text_area.left, text_area.top), text_area.scale);
 
@@ -292,7 +324,6 @@ impl TextRenderer {
                         &mut rasterize_custom_glyph,
                     )? {
                         self.glyph_vertices.push(glyph_to_render);
-                        remaining_glyphs -= 1;
                     }
                 }
             }
